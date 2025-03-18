@@ -20,9 +20,28 @@ grouped_data = merged_data.groupby("id_questionnaire").agg(lambda x: list(x))
 transformed_rows = []
 for idx, row in grouped_data.iterrows():
     new_row = {"id_questionnaire": idx, "exploitant_cle_unique": row["exploitant_cle_unique"][0]}
-    for i, (culture, superficie) in enumerate(zip(row["code_culture"], row["superficie_hec"]), start=1):
+    
+    for i, (culture, superficie, superficie_are) in enumerate(zip(row["code_culture"], row["superficie_hec"], row["superficie_are"]), start=1):
         new_row[f"code_culture{i}"] = culture
         new_row[f"superficie_hec{i}"] = superficie
+        new_row[f"superficie_are{i}"] = superficie_are
+    
+    for i, (materiel, nombre, mode_mobilisation, mode_exploitation) in enumerate(zip(row["code_materiel"], row["code_materiel_nombre"], row["ee_mode_mobilisation_materiel"], row["ee_mode_exploitation_materiel"]), start=1):
+        new_row[f"code_materiel{i}"] = materiel
+        new_row[f"code_materiel_nombre{i}"] = nombre
+        new_row[f"ee_mode_mobilisation_materiel{i}"] = mode_mobilisation
+        new_row[f"ee_mode_exploitation_materiel{i}"] = mode_exploitation
+    
+    for i, (sau1, sau2, sau3, sau4, sat1, sat2, st1, st2, sat3, sat4, st3, st4) in enumerate(zip(row["superficie_agricole_utile_sau_1"], row["superficie_agricole_utile_sau_2"], row["superficie_agricole_utile_sau_3"], row["superficie_agricole_utile_sau_4"], row["superficie_agricole_totale_sat_1"], row["superficie_agricole_totale_sat_2"], row["surface_totale_st_1"], row["surface_totale_st_2"], row["superficie_agricole_totale_sat_3"], row["superficie_agricole_totale_sat_4"], row["surface_totale_st_3"], row["surface_totale_st_4"]), start=1):
+        new_row[f"superficie_agricole_utile_sau_{i}"] = sau1
+        new_row[f"superficie_agricole_totale_sat_{i}"] = sat1
+        new_row[f"surface_totale_st_{i}"] = st1
+    
+    new_row["origine_des_terres"] = row["origine_des_terres"][0]
+    new_row["status_juridique"] = row["status_juridique"][0]
+    new_row["superfecie_sj"] = row["superfecie_sj"][0]
+    new_row["superfecie_sj_are"] = row["superfecie_sj_are"][0]
+    
     transformed_rows.append(new_row)
 
 # Convert back to DataFrame
@@ -33,9 +52,6 @@ output_file = "questionnaire_transformed.xlsx"
 final_df.to_excel(output_file, index=False)
 
 print(f"Transformation successful! File saved as {output_file}")
-
-
-
 
 
 
