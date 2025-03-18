@@ -26,7 +26,12 @@ for idx, row in grouped_data.iterrows():
         new_row[f"superficie_hec{i}"] = superficie
         new_row[f"superficie_are{i}"] = superficie_are
     
-    for i, (materiel, nombre, mode_mobilisation, mode_exploitation) in enumerate(zip(row["code_materiel"], row["code_materiel_nombre"], row["ee_mode_mobilisation_materiel"], row["ee_mode_exploitation_materiel"]), start=1):
+    for i, (materiel, nombre, mode_mobilisation, mode_exploitation) in enumerate(zip(
+   row["code_materiel"], 
+    row["code_materiel_nombre"], 
+    row.get("ee_mode_mobilisation_materiel", []), 
+    row.get("ee_mode_exploitation_materiel", [])  # Fix here
+), start=1):
         new_row[f"code_materiel{i}"] = materiel
         new_row[f"code_materiel_nombre{i}"] = nombre
         new_row[f"ee_mode_mobilisation_materiel{i}"] = mode_mobilisation
