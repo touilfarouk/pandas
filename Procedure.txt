@@ -1,0 +1,340 @@
+1. Open Excel and Enable Developer Mode
+
+    Open Microsoft Excel.
+    Click on File > Options > Customize Ribbon.
+    Check Developer on the right panel and click OK.
+
+2. Open the VBA Editor
+
+    Press ALT + F11 to open the VBA Editor.
+    Click Insert > Module to add a new module.
+
+3. Paste the VBA Code
+
+    Copy the VBA code from the provided document.
+    Paste it into the module.
+
+4. Run the Macro
+
+    Press ALT + F8, select the macro name, and click Run.
+
+5. Make Sure Your CSV Files Exist
+
+    Ensure the CSV files (questionnaire.csv, utilisation_du_sol.csv, etc.) exist in the same directory as your Excel file.
+    If they are in a different location, modify the file paths in the VBA script.
+
+6. Output
+
+    The script will process the data and generate a transformed Excel file (questionnaire_transformed.xlsx) in the same directory.
+
+    --------------------------------------------------------------------------------------------------------------------------------
+    Sub ProcessData()
+    Dim ws As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim dict As Object
+    Dim rng As Range, cell As Range
+    Dim i As Integer, j As Integer
+    
+    ' Load CSV files into sheets
+    LoadCSV "questionnaire.csv", "Questionnaire"
+    LoadCSV "utilisation_du_sol.csv", "UtilisationDuSol"
+    LoadCSV "materiel_agricole.csv", "MaterielAgricole"
+    LoadCSV "post_superficie_exploitation.csv", "SuperficieExploitation"
+    LoadCSV "status_juridique.csv", "StatusJuridique"
+    
+    ' Remove duplicate id_questionnaire values (keeping first entry)
+    RemoveDuplicates "UtilisationDuSol", "A"
+    RemoveDuplicates "MaterielAgricole", "A"
+    RemoveDuplicates "StatusJuridique", "A"
+    
+    ' Aggregate numeric values in SuperficieExploitation
+    AggregateColumn "SuperficieExploitation", "A"
+    
+    ' Merge data on id_questionnaire
+    MergeSheets "Questionnaire", "UtilisationDuSol", "A"
+    MergeSheets "Questionnaire", "MaterielAgricole", "A"
+    MergeSheets "Questionnaire", "SuperficieExploitation", "A"
+    MergeSheets "Questionnaire", "StatusJuridique", "A"
+    
+    ' Transform data dynamically
+    TransformData "Questionnaire"
+    
+    ' Save to Excel
+    ActiveWorkbook.SaveAs Filename:=ThisWorkbook.Path & "\questionnaire_transformed.xlsx", FileFormat:=xlOpenXMLWorkbook
+    MsgBox "✅ Transformation successful! File saved."
+End Sub
+
+Sub LoadCSV(fileName As String, sheetName As String)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets(sheetName)
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Sheets.Add
+        ws.Name = sheetName
+    End If
+    On Error GoTo 0
+    
+    With ws.QueryTables.Add(Connection:="TEXT;" & ThisWorkbook.Path & "\" & fileName, Destination:=ws.Range("A1"))
+        .TextFileConsecutiveDelimiter = False
+        .TextFileTabDelimiter = False
+        .TextFileSemicolonDelimiter = True
+        .TextFileCommaDelimiter = True
+        .Refresh
+    End With
+End Sub
+
+Sub RemoveDuplicates(sheetName As String, col As String)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(sheetName)
+    lastRow = ws.Cells(ws.Rows.Count, col).End(xlUp).Row
+    ws.Range(col & "1:" & col & lastRow).RemoveDuplicates Columns:=1, Header:=xlYes
+End Sub
+
+Sub AggregateColumn(sheetName As String, keyCol As String)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(sheetName)
+    lastRow = ws.Cells(ws.Rows.Count, keyCol).End(xlUp).Row
+    
+    Dim dict As Object
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    Dim r As Integer
+    For r = 2 To lastRow
+        id = ws.Cells(r, 1).Value
+        value = ws.Cells(r, 2).Value
+        If dict.Exists(id) Then
+            dict(id) = dict(id) + value
+        Else
+            dict.Add id, value
+        End If
+    Next r
+    
+    ws.Cells.Clear
+    ws.Cells(1, 1).Value = "id_questionnaire"
+    ws.Cells(1, 2).Value = "AggregatedValue"
+    
+    Dim k As Variant, rowIndex As Integer
+    rowIndex = 2
+    For Each k In dict.keys
+        ws.Cells(rowIndex, 1).Value = k
+        ws.Cells(rowIndex, 2).Value = dict(k)
+        rowIndex = rowIndex + 1
+    Next k
+End Sub
+
+Sub MergeSheets(mainSheet As String, mergeSheet As String, keyCol As String)
+    Dim wsMain As Worksheet, wsMerge As Worksheet
+    Set wsMain = ThisWorkbook.Sheets(mainSheet)
+    Set wsMerge = ThisWorkbook.Sheets(mergeSheet)
+    
+    Dim lastRowMain As Long, lastRowMerge As Long
+    lastRowMain = wsMain.Cells(Rows.Count, keyCol).End(xlUp).Row
+    lastRowMerge = wsMerge.Cells(Rows.Count, keyCol).End(xlUp).Row
+    
+    Dim r As Integer, found As Range
+   For r = 2 To lastRowMain
+    ' Check if the cell is not empty before searching
+    If Not IsEmpty(wsMain.Cells(r, 1).Value) Then
+        ' Search for the value in the merged worksheet
+        Set found = wsMerge.Range("A2:A" & lastRowMerge).Find(wsMain.Cells(r, 1).Value, LookAt:=xlWhole)
+        
+        ' If found, copy the corresponding row's values
+        If Not found Is Nothing Then
+            Dim lastCol As Integer
+            lastCol = wsMain.Cells(r, Columns.Count).End(xlToLeft).Column + 1 ' Next empty column
+            
+            ' Ensure there are columns to copy before resizing
+            Dim colCount As Integer
+            colCount = found.EntireRow.Columns.Count - 1
+            
+            If colCount > 0 Then
+                wsMain.Cells(r, lastCol).Resize(, colCount).Value = found.Offset(0, 1).Resize(, colCount).Value
+            End If
+        End If
+    End If
+Next r
+
+End Sub
+
+Sub TransformData(sheetName As String)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(sheetName)
+    lastRow = ws.Cells(Rows.Count, "A").End(xlUp).Row
+    lastCol = ws.Cells(1, Columns.Count).End(xlToLeft).Column
+    
+    Dim newWs As Worksheet
+    Set newWs = ThisWorkbook.Sheets.Add
+    newWs.Name = "TransformedData"
+    
+    Dim dict As Object
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    Dim r As Integer, c As Integer, key As String, value As String
+    For r = 2 To lastRow
+        key = ws.Cells(r, 1).Value
+        If Not dict.Exists(key) Then
+            dict.Add key, New Collection
+        End If
+        For c = 2 To lastCol
+            value = ws.Cells(r, c).Value
+            If value <> "" Then dict(key).Add value
+        Next c
+    Next r
+    
+    ' Write transformed data
+    Dim rowIndex As Integer
+    rowIndex = 2
+    newWs.Cells(1, 1).Value = "id_questionnaire"
+    newWs.Cells(1, 2).Value = "TransformedData"
+    
+    Dim k As Variant
+    For Each k In dict.keys
+        newWs.Cells(rowIndex, 1).Value = k
+        newWs.Cells(rowIndex, 2).Value = Join(dict(k).ToArray, ", ")
+        rowIndex = rowIndex + 1
+    Next k
+End Sub
+----------------------------------------------------------------------------------------------------------------------
+
+
+To save your Excel workbook with the macro so your colleagues can use it, follow these steps:
+1. Save as a Macro-Enabled Workbook
+
+Since VBA macros cannot be saved in a regular .xlsx file, you need to save it as a macro-enabled workbook (.xlsm):
+
+    Click on File > Save As.
+    Choose a location to save the file.
+    Set "Save as type" to Excel Macro-Enabled Workbook (*.xlsm).
+    Click "Save".
+
+2. Enable Macros for Your Colleagues
+
+When your colleagues open the file, Excel might block macros for security reasons. To enable them:
+
+    When opening the file, a yellow security warning bar will appear at the top.
+    Click "Enable Content" to allow macros to run.
+
+3. (Optional) Digitally Sign the Macro
+
+To avoid security warnings, you can digitally sign the macro:
+
+    Open VBA Editor (ALT + F11).
+    Click Tools > Digital Signature.
+    Choose or create a self-signed certificate.
+    Save the file.
+
+4. Share the Workbook
+
+Now you can share the .xlsm file via:
+✔ Email
+✔ Cloud storage (Google Drive, OneDrive, Dropbox)
+✔ USB or shared network folder
+-------------------------------------------------------------------------------------------------
+To connect your Excel macro-enabled workbook (.xlsm) to a remote MySQL database and receive updates dynamically, follow these steps:
+1️⃣ Install MySQL ODBC Connector
+
+Excel communicates with MySQL via ODBC (Open Database Connectivity). You need to install the MySQL ODBC driver:
+
+    Download and install MySQL Connector/ODBC.
+    Configure a Data Source (DSN):
+        Open ODBC Data Source Administrator (search "ODBC" in Windows).
+        Go to System DSN and click Add.
+        Choose MySQL ODBC Driver.
+        Enter your MySQL server details:
+            Server: Remote IP or domain of your MySQL database
+            User: Your MySQL username
+            Password: Your MySQL password
+            Database: Select the database you want to connect to
+        Test the connection and save it.
+
+2️⃣ Connect Excel to MySQL using VBA
+
+Now, you can use VBA to fetch live updates.
+1. Enable References
+
+    Open your workbook (.xlsm) and press ALT + F11 to open the VBA Editor.
+    Click Tools > References.
+    Enable these libraries:
+        Microsoft ActiveX Data Objects 6.1 Library (for database connection).
+        Microsoft OLE DB Service Component 1.0 Type Library.
+
+2. Write the VBA Code
+
+This code will connect to the MySQL database, fetch new data, and update Excel dynamically.
+
+Sub FetchMySQLData()
+    Dim conn As Object
+    Dim rs As Object
+    Dim ws As Worksheet
+    Dim lastRow As Integer
+    Dim query As String
+    
+    ' Set worksheet
+    Set ws = ThisWorkbook.Sheets("Sheet1") ' Change to your sheet name
+    
+    ' Create connection
+    Set conn = CreateObject("ADODB.Connection")
+    Set rs = CreateObject("ADODB.Recordset")
+
+    ' Connection string (update with your details)
+    conn.Open "DRIVER={MySQL ODBC 8.0 Driver};" & _
+              "SERVER=your_server_ip_or_domain;" & _
+              "DATABASE=your_database_name;" & _
+              "USER=your_username;" & _
+              "PASSWORD=your_password;" & _
+              "OPTION=3;"
+
+    ' Query to get updated data
+    query = "SELECT * FROM questionnaire_transformed" ' Change to your table name
+
+    ' Open recordset
+    rs.Open query, conn, 1, 1 ' 1 = adOpenKeyset, 1 = adLockReadOnly
+
+    ' Clear old data
+    ws.Range("A2:Z1000").ClearContents ' Adjust range as needed
+
+    ' Write headers
+    Dim i As Integer
+    For i = 0 To rs.Fields.Count - 1
+        ws.Cells(1, i + 1).Value = rs.Fields(i).Name
+    Next i
+
+    ' Write data to Excel
+    ws.Range("A2").CopyFromRecordset rs
+
+    ' Close connections
+    rs.Close
+    conn.Close
+    Set rs = Nothing
+    Set conn = Nothing
+
+    MsgBox "✅ Data Updated Successfully!", vbInformation
+End Sub
+
+3️⃣ Run the Macro
+
+    Press ALT + F8 in Excel.
+    Select FetchMySQLData and click Run.
+    The latest data from MySQL will be fetched into Excel dynamically!
+
+4️⃣ Automate the Update (Optional)
+
+To update the data every X minutes, use Workbook_Open:
+
+    Open the VBA editor (ALT + F11).
+    Double-click ThisWorkbook under Microsoft Excel Objects.
+    Add this code:
+
+Private Sub Workbook_Open()
+    Application.OnTime Now + TimeValue("00:05:00"), "FetchMySQLData" ' Updates every 5 minutes
+End Sub
+
+This will refresh the data every 5 minutes.
+5️⃣ Share with Colleagues
+
+✔ Save as .xlsm
+✔ Share via email, OneDrive, or network drive
+✔ Ensure they have MySQL ODBC Connector installed
+🎯 Done! Now your Excel workbook receives live updates from MySQL. 🚀
+
+Let me know if you need any tweaks! 😃
