@@ -79,3 +79,60 @@ output_file = "questionnaire_transformed.xlsx"
 final_df.to_excel(output_file, index=False)
 
 print(f"✅ Transformation successful! File saved as {output_file}")
+
+--------------------------------------------------------------------------------------------lastly made----------------------------------------------
+import pandas as pd
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill
+
+# Load data
+df = pd.read_csv("recenseur.csv", low_memory=False)
+
+# Rename columns with French labels
+df.rename(columns={
+    "id_recensseur": "ID Recenseur",
+    "id_user": "ID Utilisateur",
+    "nom_recensseur": "Nom Recenseur",
+    "prenom_recenseur": "Prénom Recenseur",
+    "commune": "Commune (Code)",
+    "email": "Email",
+    "controleur": "Contrôleur",
+    "phone": "Téléphone",
+    "num_zone_district": "Numéro Zone District",
+    "num_exploitation": "Numéro Exploitation",
+    "nom_zone_district": "Nom Zone District",
+    "creation_date": "Date de Création",
+    "id": "ID",
+    "commune_code": "Code Commune",
+    "commune_name": "Nom de la Commune",
+    "commune_name_ascii": "Nom Commune (ASCII)",
+    "daira_name": "Nom Daira",
+    "daira_name_ascii": "Nom Daira (ASCII)",
+    "wilaya_code": "Code Wilaya",
+    "wilaya_name": "Nom Wilaya",
+    "wilaya_name_ascii": "Nom Wilaya (ASCII)",
+    "qst_a_recense": "Questionnaires à Recenser",
+    "qst_recense": "Questionnaires Renseignés"
+}, inplace=True)
+
+# Export to Excel
+output_file = "questionnaire_transformed3.xlsx"
+df.to_excel(output_file, index=False)
+
+# Optional: Apply header style (bold + fill color)
+wb = load_workbook(output_file)
+ws = wb.active
+
+# Style headers
+header_font = Font(bold=True, color="FFFFFF")
+header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+
+for cell in ws[1]:
+    cell.font = header_font
+    cell.fill = header_fill
+
+# Save styled file
+wb.save(output_file)
+
+print(f"✅ Export terminé avec succès : {output_file}")
+
